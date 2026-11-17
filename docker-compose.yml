@@ -1,0 +1,110 @@
+
+name: unified-data-platform
+
+services:
+
+  mysql-cadastro:
+    image: mysql:8.4
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_A_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_A_DB}
+      MYSQL_USER: ${MYSQL_A_USER}
+      MYSQL_PASSWORD: ${MYSQL_A_PASSWORD}
+
+    ports:
+      - "127.0.0.1:3307:3306"
+
+    command:
+      - "--server-id=101"
+      - "--log-bin=mysql-bin"
+      - "--binlog-format=ROW"
+      - "--binlog-row-image=FULL"
+      - "--binlog-expire-logs-seconds=604800"
+
+    volumes:
+      - mysql_cadastro_data:/var/lib/mysql
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'MYSQL_PWD="$${MYSQL_ROOT_PASSWORD}" mysqladmin ping -h 127.0.0.1 -u root --silent'
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+    networks:
+      - data-network
+
+  mysql-financeiro:
+    image: mysql:8.4
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_B_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_B_DB}
+      MYSQL_USER: ${MYSQL_B_USER}
+      MYSQL_PASSWORD: ${MYSQL_B_PASSWORD}
+
+    ports:
+      - "127.0.0.1:3308:3306"
+
+    command:
+      - "--server-id=102"
+      - "--log-bin=mysql-bin"
+      - "--binlog-format=ROW"
+      - "--binlog-row-image=FULL"
+      - "--binlog-expire-logs-seconds=604800"
+
+    volumes:
+      - mysql_financeiro_data:/var/lib/mysql
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'MYSQL_PWD="$${MYSQL_ROOT_PASSWORD}" mysqladmin ping -h 127.0.0.1 -u root --silent'
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+    networks:
+      - data-network
+
+  postgres-warehouse:
+    image: postgres:17
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    ports:
+      - "127.0.0.1:5433:5432"
+
+    volumes:
+      - postgres_warehouse_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"'
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+    networks:
+      - data-network
+
+networks:
+  data-network:
+    driver: bridge
+
+volumes:
+  mysql_cadastro_data:
+  mysql_financeiro_data:
+  postgres_warehouse_data:
