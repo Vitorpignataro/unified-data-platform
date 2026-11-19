@@ -57,6 +57,7 @@ func run() error {
 	)
 	defer cancel()
 
+	//Criando empresas
 	fmt.Println("Gerando empresas...")
 
 	if err := GenerateCompanies(ctx, dbCadastro, 1000); err != nil {
@@ -75,6 +76,23 @@ func run() error {
 	}
 
 	fmt.Printf("Empresas no banco: %d\n", total)
+
+	//Criando unidades
+	fmt.Println("Gerando unidades...")
+	if err := GenerateUnits(ctx, dbCadastro, 10000, 1000); err != nil {
+		return fmt.Errorf("gerar unidades: %w", err)
+	}
+
+	var totalUnits int
+	err = dbCadastro.QueryRowContext(
+		ctx,
+		"SELECT COUNT(*) FROM unidades",
+	).Scan(&totalUnits)
+
+	if err != nil {
+		return fmt.Errorf("contar unidades: %w", err)
+	}
+	fmt.Printf("Unidades no banco: %d\n", totalUnits)
 
 	return nil
 }
@@ -108,7 +126,7 @@ func openSource(source Source) (*sql.DB, error) {
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
-		5*time.Second,
+		5*time.Minute,
 	)
 	defer cancel()
 
