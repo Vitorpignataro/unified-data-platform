@@ -120,6 +120,29 @@ func run() error {
 
 	fmt.Printf("Faturas no banco: %d\n", totalInvoices)
 
+	fmt.Println("Gerando pagamentos...")
+
+	if err := GeneratePayments(
+		ctx,
+		dbFinanceiro,
+		60000,
+	); err != nil {
+		return fmt.Errorf("gerar pagamentos: %w", err)
+	}
+
+	var totalPayments int
+
+	err = dbFinanceiro.QueryRowContext(
+		ctx,
+		"SELECT COUNT(*) FROM pagamentos",
+	).Scan(&totalPayments)
+
+	if err != nil {
+		return fmt.Errorf("contar pagamentos: %w", err)
+	}
+
+	fmt.Printf("Pagamentos no banco: %d\n", totalPayments)
+
 	return nil
 }
 
