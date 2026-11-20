@@ -94,6 +94,32 @@ func run() error {
 	}
 	fmt.Printf("Unidades no banco: %d\n", totalUnits)
 
+	fmt.Println("Gerando faturas...")
+
+	if err := GenerateInvoices(
+		ctx,
+		dbCadastro,
+		dbFinanceiro,
+		100000,
+		10000,
+		60000,
+	); err != nil {
+		return fmt.Errorf("gerar faturas: %w", err)
+	}
+
+	var totalInvoices int
+
+	err = dbFinanceiro.QueryRowContext(
+		ctx,
+		"SELECT COUNT(*) FROM faturas",
+	).Scan(&totalInvoices)
+
+	if err != nil {
+		return fmt.Errorf("contar faturas: %w", err)
+	}
+
+	fmt.Printf("Faturas no banco: %d\n", totalInvoices)
+
 	return nil
 }
 
@@ -126,7 +152,7 @@ func openSource(source Source) (*sql.DB, error) {
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
-		5*time.Minute,
+		10*time.Minute,
 	)
 	defer cancel()
 
