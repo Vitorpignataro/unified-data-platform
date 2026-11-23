@@ -50,5 +50,46 @@ services:
     networks:
       - data-network
 
+  kafka-connect:
+    image: quay.io/debezium/connect:3.6
+    hostname: kafka-connect
+    restart: unless-stopped
+
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+    ports:
+      - "127.0.0.1:8083:8083"
+
+    environment:
+      BOOTSTRAP_SERVERS: "kafka:19092"
+      GROUP_ID: "udp-connect-cluster"
+
+      CONFIG_STORAGE_TOPIC: "udp.connect.configs"
+      OFFSET_STORAGE_TOPIC: "udp.connect.offsets"
+      STATUS_STORAGE_TOPIC: "udp.connect.statuses"
+
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
+
+      CONNECT_OFFSET_STORAGE_PARTITIONS: "3"
+      CONNECT_STATUS_STORAGE_PARTITIONS: "1"
+
+      KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "true"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
+
+      REST_HOST_NAME: "0.0.0.0"
+      ADVERTISED_HOST_NAME: "kafka-connect"
+
+      HEAP_OPTS: "-Xms256m -Xmx768m"
+
+    networks:
+      - data-network
+
 volumes:
   kafka_data:
