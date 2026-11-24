@@ -1,0 +1,33 @@
+
+{
+  "name": "mysql-cadastro-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "mysql-cadastro",
+    "database.port": "3306",
+
+    "database.user": "${env:CDC_MYSQL_A_USER}",
+    "database.password": "${env:CDC_MYSQL_A_PASSWORD}",
+
+    "database.server.id": "50101",
+    "database.allowPublicKeyRetrieval": "true",
+
+    "topic.prefix": "udp.cadastro",
+
+    "database.include.list": "db_cadastro",
+    "table.include.list": "db_cadastro.empresas,db_cadastro.unidades",
+
+    "snapshot.mode": "initial",
+
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:19092",
+    "schema.history.internal.kafka.topic": "udp.schema-history.cadastro",
+
+    "include.schema.changes": "false",
+
+    "heartbeat.interval.ms": "10000",
+
+    "tombstones.on.delete": "true"
+  }
+}

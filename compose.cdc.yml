@@ -66,6 +66,15 @@ services:
       BOOTSTRAP_SERVERS: "kafka:19092"
       GROUP_ID: "udp-connect-cluster"
 
+      CONNECT_CONFIG_PROVIDERS: "env"
+      CONNECT_CONFIG_PROVIDERS_ENV_CLASS: "org.apache.kafka.common.config.provider.EnvVarConfigProvider"
+
+      CDC_MYSQL_A_USER: "${CDC_MYSQL_A_USER:?CDC_MYSQL_A_USER não definida}"
+      CDC_MYSQL_A_PASSWORD: "${CDC_MYSQL_A_PASSWORD:?CDC_MYSQL_A_PASSWORD não definida}"
+
+      CDC_MYSQL_B_USER: "${CDC_MYSQL_B_USER:?CDC_MYSQL_B_USER não definida}"
+      CDC_MYSQL_B_PASSWORD: "${CDC_MYSQL_B_PASSWORD:?CDC_MYSQL_B_PASSWORD não definida}"
+
       CONFIG_STORAGE_TOPIC: "udp.connect.configs"
       OFFSET_STORAGE_TOPIC: "udp.connect.offsets"
       STATUS_STORAGE_TOPIC: "udp.connect.statuses"
