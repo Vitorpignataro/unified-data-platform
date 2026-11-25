@@ -1,0 +1,35 @@
+
+{
+  "name": "mysql-financeiro-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "mysql-financeiro",
+    "database.port": "3306",
+
+    "database.user": "${env:CDC_MYSQL_B_USER}",
+    "database.password": "${env:CDC_MYSQL_B_PASSWORD}",
+
+    "database.server.id": "50102",
+    "database.allowPublicKeyRetrieval": "true",
+
+    "topic.prefix": "udp.financeiro",
+
+    "database.include.list": "db_financeiro",
+    "table.include.list": "db_financeiro.faturas,db_financeiro.pagamentos",
+
+    "snapshot.mode": "initial",
+
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:19092",
+    "schema.history.internal.kafka.topic": "udp.schema-history.financeiro",
+
+    "include.schema.changes": "false",
+
+    "decimal.handling.mode": "string",
+
+    "heartbeat.interval.ms": "10000",
+
+    "tombstones.on.delete": "true"
+  }
+}
