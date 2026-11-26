@@ -77,3 +77,50 @@ func TestParseUnknownOperation(t *testing.T) {
 		t.Fatal("operação desconhecida deveria falhar")
 	}
 }
+
+
+func TestParseDelete(t *testing.T) {
+	value := []byte(`{
+		"payload": {
+			"before": {
+				"id_fatura": 900001,
+				"valor_total": "1399.90"
+			},
+			"after": null,
+			"source": {
+				"db": "db_financeiro",
+				"table": "faturas"
+			},
+			"op": "d"
+		}
+	}`)
+
+	event, err := Parse(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if event.Operation != "d" {
+		t.Errorf(
+			"operação esperada d, recebida %s",
+			event.Operation,
+		)
+	}
+
+	if event.Database != "db_financeiro" {
+		t.Errorf("origem incorreta: %s", event.Database)
+	}
+
+	if event.Table != "faturas" {
+		t.Errorf("tabela incorreta: %s", event.Table)
+	}
+
+	if len(event.Before) == 0 {
+		t.Fatal("DELETE deve conter dados anteriores")
+	}
+
+	if event.Tombstone {
+		t.Fatal("evento DELETE não é tombstone")
+	}
+}
+
