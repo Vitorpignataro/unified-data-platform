@@ -9,12 +9,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/segmentio/kafka-go"
 
-	"github.com/Vitorpignataro/unified-data-platform/internal/cdc"
+	"github.com/Vitorpignataro/unified-data-platform/internal/consumer"
 )
 
+// Tópicos monitorados pelo CDC Consumer.
 var topics = []string{
 	"udp.cadastro.db_cadastro.empresas",
 	"udp.cadastro.db_cadastro.unidades",
@@ -23,6 +25,7 @@ var topics = []string{
 }
 
 func main() {
+	// Permite encerramento gracioso com Ctrl+C ou SIGTERM.
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
@@ -36,6 +39,7 @@ func main() {
 }
 
 func run(ctx context.Context) error {
+	// Configurações via argumentos.
 	broker := flag.String(
 		"broker",
 		"localhost:9092",
@@ -51,7 +55,7 @@ func run(ctx context.Context) error {
 	limit := flag.Int(
 		"limit",
 		10,
-		"Quantidade de eventos (0 = contínuo)",
+		"Quantidade de mensagens (0 = contínuo)",
 	)
 
 	flag.Parse()
@@ -60,6 +64,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("limit não pode ser negativo")
 	}
 
+	// Configuração do Kafka Reader.
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{*broker},
 
@@ -78,20 +83,34 @@ func run(ctx context.Context) error {
 		// Commits síncronos quando forem implementados.
 		CommitInterval: 0,
 	})
+
 	defer func() {
 		if err := reader.Close(); err != nil {
-			log.Printf("erro ao fechar reader: %v", err)
+			log.Printf(
+				"erro ao fechar Kafka Reader: %v",
+				err,
+			)
 		}
 	}()
 
-	log.Printf("Consumer Group: %s", *group)
+	// Handler responsável por validar eventos CDC.
+	handler := consumer.ValidationHandler{}
+
+	log.Println("====================================")
+	log.Println(" Unified Data Platform - CDC Consumer")
+	log.Println("====================================")
 	log.Printf("Broker: %s", *broker)
-	log.Printf("Tópicos: %v", topics)
+	log.Printf("Consumer Group: %s", *group)
+	log.Printf("Tópicos monitorados: %d", len(topics))
 	log.Println("Modo diagnóstico: offsets NÃO serão confirmados")
+	log.Println("Aguardando mensagens...")
 
 	total := 0
 
+	// Limit = 0 mantém o consumer em execução contínua.
 	for *limit == 0 || total < *limit {
+
+		// Busca mensagem sem confirmar o offset.
 		message, err := reader.FetchMessage(ctx)
 
 		if err != nil {
@@ -101,13 +120,57 @@ func run(ctx context.Context) error {
 				break
 			}
 
-			return fmt.Errorf("buscar mensagem Kafka: %w", err)
+			if ctx.Err() != nil {
+				log.Println("Contexto encerrado")
+				break
+			}
+
+			return fmt.Errorf(
+				"erro ao buscar mensagem Kafka: %w",
+				err,
+			)
 		}
 
-		event, err := cdc.Parse(message.Value)
+		// Converte a mensagem Kafka para nosso modelo interno.
+		msg := consumer.Message{
+			Topic:     message.Topic,
+			Partition: message.Partition,
+			Offset:    message.Offset,
+			Key:       message.Key,
+			Value:     message.Value,
+		}
+
+		// Processa a mensagem com validação e retry.
+		result, err := consumer.ProcessWithRetry(
+			ctx,
+			handler,
+			msg,
+			3,
+			200*time.Millisecond,
+		)
+
 		if err != nil {
+			// Encerramento durante o processamento.
+			if ctx.Err() != nil {
+				log.Println(
+					"Processamento interrompido pelo encerramento",
+				)
+				break
+			}
+
+			// Diferencia falhas de validação.
+			if errors.Is(err, consumer.ErrInvalidEvent) {
+				return fmt.Errorf(
+					"evento inválido topic=%s partition=%d offset=%d: %w",
+					message.Topic,
+					message.Partition,
+					message.Offset,
+					err,
+				)
+			}
+
 			return fmt.Errorf(
-				"interpretar %s[%d] offset=%d: %w",
+				"falha no processamento topic=%s partition=%d offset=%d: %w",
 				message.Topic,
 				message.Partition,
 				message.Offset,
@@ -117,34 +180,43 @@ func run(ctx context.Context) error {
 
 		total++
 
-		// Evita gerar milhares de linhas no terminal.
+		// Evita excesso de logs durante grandes snapshots.
 		if total <= 10 || total%1000 == 0 {
-			if event.Tombstone {
+
+			if result.Tombstone {
 				log.Printf(
-					"topic=%s partition=%d offset=%d op=TOMBSTONE",
-					message.Topic,
-					message.Partition,
-					message.Offset,
+					"TOMBSTONE topic=%s partition=%d offset=%d",
+					result.Topic,
+					result.Partition,
+					result.Offset,
 				)
 			} else {
 				log.Printf(
-					"topic=%s partition=%d offset=%d origem=%s.%s op=%s",
-					message.Topic,
-					message.Partition,
-					message.Offset,
-					event.Database,
-					event.Table,
-					event.Operation,
+					"VALIDADO topic=%s partition=%d offset=%d origem=%s.%s op=%s id=%d",
+					result.Topic,
+					result.Partition,
+					result.Offset,
+					result.Database,
+					result.Table,
+					result.Operation,
+					result.EntityID,
 				)
 			}
 		}
 
-		// NÃO confirmar o offset nesta etapa.
-		// O commit só acontecerá depois de persistir
-		// o evento com sucesso no PostgreSQL.
+		// IMPORTANTE:
+		//
+		// Ainda não utilizamos CommitMessages().
+		//
+		// Nesta fase, apenas validamos eventos.
+		// A confirmação dos offsets será implementada
+		// após a persistência no PostgreSQL.
 	}
 
-	log.Printf("Total de mensagens lidas: %d", total)
+	log.Println("====================================")
+	log.Printf("Total de mensagens validadas: %d", total)
+	log.Println("CDC Consumer finalizado")
+	log.Println("====================================")
 
 	return nil
 }
